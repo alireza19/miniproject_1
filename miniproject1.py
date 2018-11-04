@@ -190,6 +190,9 @@ def offerRide(email):
             is_valid_optional_enroute_input = True
         else:
             print("Invalid input. Try again.")
+    print("Offer ride is complete.\n Taking you back to main menu...\n")
+    time.sleep(0.5)
+    login()
 
 def get_location(location):
 
