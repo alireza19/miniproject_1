@@ -6,13 +6,13 @@ cursor = connection.cursor()
 loggedIn = False #by default, the user will not be logged in
 
 def register(email, name, phone, pwd): #registers the user
-    c.execute ("INSERT INTO members VALUES (:email, :name, :phone, :pwd)", {'email': email, 'name': name, 'phone': phone, 'pwd': pwd})
+    cursor.execute ("INSERT INTO members VALUES (:email, :name, :phone, :pwd)", {'email': email, 'name': name, 'phone': phone, 'pwd': pwd})
     
 def askDupEmail(email): #checks of the email already exists in the DB
 
     dupEmail = False #assumption is there email is unique
-    c.execute("SELECT m.email FROM members m")
-    emailList = c.fetchall()
+    cursor.execute("SELECT m.email FROM members m")
+    emailList = cursor.fetchall()
     for items in emailList:
         if dupEmail == True: #the email is duplicate
             break
@@ -65,12 +65,12 @@ def loginScreen():
         loginScreen() # if the input in invalid, call the loginScreen function again. 
         
 def printMessages(email):
-    
-    c.execute("SELECT i.content FROM inbox i, members m WHERE m.email = (:email) AND i.seen = 'n'", {'email': email})
-    messages = c.fetchall()
+
+    cursor.execute("SELECT i.content FROM inbox i, members m WHERE m.email = (:email) AND i.seen = 'n'", {'email': email})
+    messages = cursor.fetchall()
     
     update_seen = """UPDATE inbox SET seen = 'y' WHERE seen = 'n'""" #change the staus to "y" (seen) onces they view their email.
-    c.execute(update_seen)
+    cursor.execute(update_seen)
     for item in messages:
         print(item) #print the messages for the user
     if messages == None:
@@ -212,6 +212,7 @@ def print_next(arr, last_iter, new_iter): # a function to print the next element
             print(arr[i][j])
 
 def scroll(arr): # a function to scroll through an arr of results -> None
+    
     see_more = False
     from_iter = 0
     up_to = 0
@@ -274,7 +275,7 @@ def bookings(email):
     rideReq = cursor.fetchall() # grab all the valid bookings for the user
     if rideReq == []: # incase theu don't have any bookings in DB
         print('You have no bookings made under this Email Address.\n')
-        login() # take them to the login screen again. (break)
+        #login() # take them to the login screen again. (break)
         
     print('You currently have the following requests: ')
     for item in rideReq:
@@ -302,10 +303,92 @@ def bookings(email):
 
         except:
             print("Error occurred, please try again.") #if something goes wrong above, raise error and break out of the function.
-            
-    else:
-        pass
+    elif option1 == 'n':
+        print("No bookings canceled.")
+        input("Press enter to continue: ")
+    
+    while True:
+        option2 = str(input("Would you like to book any members on any rides you've offered? (y/n): "))
+        if option2 == 'y':
+            cursor.execute("SELECT rides.driver FROM rides WHERE rides.driver = (:email)", {"email": email})
+            if cursor.fetchone() is not None:
+                # show rides that they've offered
+                cursor.execute("SELECT * FROM rides WHERE rides.driver = (:email)", {"email": email})
+                rides_list = cursor.fetchall()
+                split_rides_list = split_list(rides_list, 5)
+                scroll(split_rides_list)
+                book_a_member(email)
+            else:
+                offer_ride_input = str(input("You have not offered any rides. Would you like to offer a ride? (y/n): "))
+                while True:
+                    if offer_ride_input == 'y':
+                        offerRide(email)
+                        break
+                    elif offer_ride_input == 'n':
+                        print("Ride offer canceled.")
+                        break
+                    else:
+                        print("Invalid input. Try again.")
+                break
+        elif option2 == 'n':
+            print("Displaying current ride offers available: \n")
+            cursor.execute("SELECT * FROM rides")
+            rides_offered_list = cursor.fetchall()
+            scroll(split_list(rides_offered_list, 5)) # split the list and allow the user to scroll down
+            book_a_member(email)
+        else:
+            print("Invalid input. Try again.")
 
+def book_a_member(email):
+
+    rno_selection_input = str(input("Please enter your selection according to the appropriate rno: "))
+    cursor.execute("SELECT * FROM rides WHERE rides.rno = (:rno_selection_input)", {"rno_selection_input": rno_selection_input})
+    if cursor.fetchone() is not None:
+        member_email = str(input("Enter member email: "))
+        num_seats_available = check_seats(rno_selection_input)
+        print(num_seats_available)
+        print("There are %d available for this ride: ", num_seats_available)
+        seats_booked = str(input("Enter the number of seats to be booked: "))
+        if seats_booked >= num_seats_available:
+            while True:
+                overbook_input = str(input("You are trying to overbook this seat. Proceed? (y/n): "))
+                if overbook_input == 'y':
+                    cost = str(input("Enter the cost: "))
+                    pickup = str(input("Enter the pickup lcode: "))
+                    dropoff = str(input("Enter the dropoff lcode: "))
+                    bno = random.randint(1, 100000)
+                    cursor.execute("INSERT INTO bookings (bno, email, rno, cost, seats, pickup, dropoff) VALUES ((:bno), (:email), (:rno), (:cost), (:seats), (:pickup), (:dropoff));", {"bno": bno, "email":member_email, "rno":rno_selection_input, "cost": cost, "seats":seats_booked, "pickup":pickup, "dropoff": dropoff})
+                    cursor.commit()
+                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                    update_rider = "you have been booked on a ride"
+                    cursor.execute("INSERT INTO inbox (email, msgTimestamp, sender, content, rno, seen) VALUES ((:email), (:timestamp), (:sender), (:content), (:rno), 'n')", {"email":email, "timestamp":timestamp, "sender": member_email, "content":update_rider, "rno": rno_selection_input})
+                    print("Booking has been updated")
+                    break
+                elif overbook_input == 'n':
+                    cost = str(input("Enter the cost: "))
+                    pickup = str(input("Enter the pickup lcode: "))
+                    dropoff = str(input("Enter the dropoff lcode: "))
+                    bno = random.randint(1, 100000)
+                    cursor.execute("INSERT INTO bookings (bno, email, rno, cost, seats, pickup, dropoff) VALUES ((:bno), (:email), (:rno), (:cost), (:seats), (:pickup), (:dropoff));", {"bno": bno, "email":member_email, "rno":rno_selection_input, "cost": cost, "seats":seats_booked, "pickup":pickup, "dropoff": dropoff})
+                    cursor.commit()
+                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                    update_rider = "you have been booked on a ride"
+                    cursor.execute("INSERT INTO inbox (email, msgTimestamp, sender, content, rno, seen) VALUES ((:email), (:timestamp), (:sender), (:content), (:rno), 'n')", {"email":email, "timestamp":timestamp, "sender": member_email, "content":update_rider, "rno": rno_selection_input})
+                    print("Booking has been updated")
+                    break
+                else:
+                    print('Invalid input. Try again.')
+
+def check_seats(rno):
+
+    cursor.execute("SELECT bookings.seats FROM bookings, rides WHERE bookings.rno=(:rno)", {"rno":rno})
+    if cursor.fetchone() is not None:
+        num_seats_list = cursor.fetchone()
+        return num_seats_list[0][0]
+    else:
+        print("No seats associated with that ride.")
+        return None
+        
 
 def rideRequests(email):
        
@@ -323,6 +406,7 @@ def rideRequests(email):
         rideRequests(email)
        
 def searchDelRideReq(email): # delete a ride request. #also need to send a proper message, which is yet to implement.
+
     cursor.execute("SELECT * FROM requests r WHERE r.email ==  (:email)", {'email': email})
     rideReq = cursor.fetchall()
     for item in rideReq:
@@ -340,10 +424,8 @@ def searchDelRideReq(email): # delete a ride request. #also need to send a prope
         print("Error occurred, please try again.")
 
 
-def searchDelRideReq():
-    pass
-
 def login(): #proper login
+
     loginSuccess = False # login unsuccesfull by default
 
     email = str(input("Please enter E-mail or press 0 to go back to main screen: "))
@@ -410,6 +492,7 @@ def login(): #proper login
                 print("Exiting...")
                 time.sleep(0.5)
                 print("goodBye!")
+                return 0
 #in all these cases the option input is valid, so the loop won't be repeated.  
 
 def main():
