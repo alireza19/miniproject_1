@@ -3,40 +3,37 @@ import sqlite3, time, random
 global connection, cursor
 connection = sqlite3.connect('miniproject1.db')
 cursor = connection.cursor()
-loggedIn = False
+loggedIn = False #by default, the user will not be logged in
 
-def register(email, name, phone, pwd):
-    cursor.execute ("INSERT INTO members VALUES (:email, :name, :phone, :pwd)", {'email': email, 'name': name, 'phone': phone, 'pwd': pwd})
+def register(email, name, phone, pwd): #registers the user
+    c.execute ("INSERT INTO members VALUES (:email, :name, :phone, :pwd)", {'email': email, 'name': name, 'phone': phone, 'pwd': pwd})
     
-def askDupEmail(email):
+def askDupEmail(email): #checks of the email already exists in the DB
 
-    dupEmail = False
-    cursor.execute("SELECT m.email FROM members m")
-    emailList = cursor.fetchall()
+    dupEmail = False #assumption is there email is unique
+    c.execute("SELECT m.email FROM members m")
+    emailList = c.fetchall()
     for items in emailList:
-        if dupEmail == True:
+        if dupEmail == True: #the email is duplicate
             break
         for elements in (list(items)):
             if elements == email:
                 print('This email already exist. Please try a different Email.')
-                dupEmail = True
+                dupEmail = True #Throw an Error if this is True (it is Flase by default)
                 break
-    return dupEmail
+    return dupEmail #return to see it its true or false
     
-def registering():
-    
-    
+def registering():    
     mainInput = str(input("To register, type 1\nTo go back to main screen, type 2\nTo exit, type 0: "))
-                        
     if mainInput == '1':
-        valEmail = False
+        valEmail = False #The input is assumned to be invalid
         
-        while not valEmail:
+        while not valEmail: #keep looping until the valid input is received.
             email = str(input("Enter your E-mail: "))
             if email == '0':
-                loginScreen()
+                loginScreen() #take the user to the login screen
             
-            if askDupEmail(email) == False:
+            if askDupEmail(email) == False: #if there email is unique, register them.
                 name = str(input("Enter your Name: "))
                 phone = str(input("Enter your Phone Number: "))
                 pwd = str(input("Enter your Pwd: "))
@@ -48,18 +45,16 @@ def registering():
         print('Exiting')
     
     else:
-        registering()
-        
- 
+        registering() #Recall the function agian, if the user couldn't register.
 
 def loginScreen():
     Input = input("\n\nPress 1 to login with a valid E-mail and Password.\nPress 2 to sign up today.\nPress 0 to exit this program.\t\t\t____")
     
     if Input == '1':    #if you are already a member
-        login()
+        login() #log them in
         
     elif Input == '2':  #if you want to sign up
-        registering()       
+        registering()      #register then with a unique email address  
         
     elif Input == '0':  # To exit
         print("Exiting...")
@@ -67,18 +62,19 @@ def loginScreen():
         print("goodBye!")
     else:
         print("Invalid input, Try Again!")
-        loginScreen()
+        loginScreen() # if the input in invalid, call the loginScreen function again. 
         
 def printMessages(email):
-    cursor.execute("SELECT i.content FROM inbox i, members m WHERE m.email = (:email) AND i.seen = 'n'", {'email': email})
-    messages = cursor.fetchall()
     
-    update_seen = """UPDATE inbox SET seen = 'y' WHERE seen = 'n'"""
-    cursor.execute(update_seen)
+    c.execute("SELECT i.content FROM inbox i, members m WHERE m.email = (:email) AND i.seen = 'n'", {'email': email})
+    messages = c.fetchall()
+    
+    update_seen = """UPDATE inbox SET seen = 'y' WHERE seen = 'n'""" #change the staus to "y" (seen) onces they view their email.
+    c.execute(update_seen)
     for item in messages:
-        print(item)
+        print(item) #print the messages for the user
     if messages == None:
-        print('You have no new messages')
+        print('You have no new messages') #if no messages, print this.
 
 def offerRide(email):
 
@@ -239,9 +235,10 @@ def scroll(arr): # a function to scroll through an arr of results -> None
 
     
 def SearchRides():
+
     locVal = False
     while not locVal:
-        locNo = input('Type a number between 1 and 3 for the number of location keywords you want to enter.\nType 0 to exit: ')
+        locNo = input('Type a number between 1 and 3 for the number of location keywords you want to enter.\nType 0 to exit: ') #how many keywords does the user want to enter
         
         if locNo == '1': #or locNo == '2' or locNo =='3':
             searchInput = input('Enter the location key: ')
@@ -254,7 +251,7 @@ def SearchRides():
                 
                 cursor.execute("SELECT r.rno FROM rides r, locations l, enroute e WHERE (:searchInput) == r.src or (:searchInput) == r.dst or (:searchInput) == l.lcode or (:searchInput) == e.lcode or (:searchInput) == l.city or (:searchInput) == l.prov or (:searchInput) == l.address" , {'searchInput': searchInput})
                 SearchQuery = cursor.fetchall()
-                print(SearchQuery)
+                print(SearchQuery) #return the valid rides
                 
             elif moreOption =='0':
                 print("Exiting...")
@@ -265,53 +262,105 @@ def SearchRides():
                 pass
             locVal = True
             
-        elif locNo == '0':
+        elif locNo == '0': # Exit the program
             print("Exiting...")
             time.sleep(0.5)
             print("goodBye!")
             locVal = True
 
-def bookings():
-    pass
+def bookings(email):
+
+    cursor.execute("SELECT * FROM bookings b WHERE b.email == (:email)", {'email': email})
+    rideReq = cursor.fetchall() # grab all the valid bookings for the user
+    if rideReq == []: # incase theu don't have any bookings in DB
+        print('You have no bookings made under this Email Address.\n')
+        login() # take them to the login screen again. (break)
+        
+    print('You currently have the following requests: ')
+    for item in rideReq:
+        print(item) #print all the bookings the user have in the DB.
+     
+    option1 = input('Do you want to cancle any? (Y/N): ')
+    if option1 == 'y': #if they want to chancel a booking
+        try:
+            delBook = input("Enter the booking number that you want to cancel: ") #bno
+            cursor.execute("SELECT r.driver, r.rno FROM bookings b, rides r WHERE b.rno = r.rno AND b.email = (:email)", {'email':email})
+            qOutput = cursor.fetchall() #grab email for the driver and the ride number
+            print(qOutput[0][1])
+            sender = (qOutput[0][0]) #driver
+            rno = (qOutput[0][1])        
+            
+            cursor.execute("DELETE FROM bookings WHERE bno = (:delBook)", {'delBook': delBook})
+            print("The booking has successfully been cancled and the driver has been notified")
+      
+            msgTimestamp = time.strftime("%Y-%m-%d %H:%M:%S") #print the date and the time at the time of cancling the booking
+    
+            message = ("The member with E-mail address '%s' has cancled their booking."% email) #print a proper cancelation message to the driver
+            seen = 'n'
+    
+            cursor.execute("INSERT INTO inbox VALUES (:email, :msgTimestamp, :sender, :message, :rno, :seen)", {'email': sender, 'msgTimestamp': msgTimestamp, 'sender': email, 'message': message, 'rno': rno, 'seen': seen})
+
+        except:
+            print("Error occurred, please try again.") #if something goes wrong above, raise error and break out of the function.
+            
+    else:
+        pass
 
 
 def rideRequests(email):
-    
-    cursor.execute("SELECT count(*) FROM requests")
-    for item in (cursor.fetchall()):
-        rid = item
-    
-    rid = rid[0] + 1
+       
+    rid = random.randint(0, 100000) #random & unique ride number for the user.
     rdate = input("Provide a date in MM/DD/YYYY form: ")
     pickup = input("Provide a Pick up Location code: ")
     dropoff = input("Provide a Drop off Location code: ")
     amount = input("Provide the amount willing to pay per seat: $")
+    #create a request for the user
+    try:
+        cursor.execute("INSERT INTO requests VALUES (:rid, :email, :rdate, :pickup, :dropoff, :amount)", {'rid': rid, 'email': email, 'rdate': rdate, 'pickup': pickup, 'dropoff': dropoff, 'amount': amount})
+        print("The ride request has been successfully created!")
+    except:
+        print("Error occured, please try again!")
+        rideRequests(email)
+       
+def searchDelRideReq(email): # delete a ride request. #also need to send a proper message, which is yet to implement.
+    cursor.execute("SELECT * FROM requests r WHERE r.email ==  (:email)", {'email': email})
+    rideReq = cursor.fetchall()
+    for item in rideReq:
+        print(item)
+        rid = rideReq[0][0]
+    if rideReq == None:
+        print('You have no current ride requests')
+    else:
+        delReq = input("Enter the ride number that you want to delete: ")
     
-    cursor.execute("INSERT INTO requests VALUES (:rid, :email, :rdate, :pickup, :dropoff, :amount)", {'rid': rid, 'email': email, 'rdate': rdate, 'pickup': pickup, 'dropoff': dropoff, 'amount': amount})
-    print("The ride request has been successfully created!")
+    cursor.execute("DELETE FROM requests WHERE rid=(:delReq)", {'delReq': delReq})
+    if not (cursor.fetchall()):
+        print("The request has successfully been deleted.")
+    else:
+        print("Error occurred, please try again.")
+
 
 def searchDelRideReq():
     pass
 
-def login():
-    loginSuccess = False
+def login(): #proper login
+    loginSuccess = False # login unsuccesfull by default
 
     email = str(input("Please enter E-mail or press 0 to go back to main screen: "))
     if email == '0':
-        loginScreen()
+        loginScreen() #to go back to the options 
     pwd = str(input("Please enter password: "))
     cursor.execute("SELECT m.email FROM members m")
     userEmail = cursor.fetchall()
     
-    userFound = False
+    userFound = False # false by default
     for items in userEmail:
-        if userFound == True:
+        if userFound == True: #user is found so break out of the loop
             break
-        
         else:
             check = email in list(items)
             if check:
-                userFound = True
+                userFound = True #user found fo break the loop
                 
                 cursor.execute("SELECT m.pwd FROM members m WHERE m.email = (:email)", {'email': email})
                 dataPwd = cursor.fetchall()
@@ -323,44 +372,45 @@ def login():
                         loginSuccess = True
                         break                           
     if not userFound:
-        print("Invalid Email\n")
+        print("Invalid Email\n") # if the user is not found
         login()
         
-    if not loginSuccess:
+    if not loginSuccess: #if the user is found, but their password is incorrect
         print("Invalid Password\n")
         login()
     
     if loggedIn:
-        printMessages(email)
-        optionVal = False
-        while not optionVal:
+        printMessages(email) # print all their messages as outlined
+        optionVal = False #unvalid option is provided by default. When true, the option provided is valid.
+        while not optionVal: # if invalid, keep looping.   
             optionInput = input('\nPress 1 to Offer a ride.\nPress 2 to Search for rides.\nPress 3 to Book members or cancle bookings.\nPress 4 to Post ride requests.\nPress 5 to Search and delete ride requests.\nPress 0 to exit.\n')
             
             if optionInput == '1':
-                offerRide(email)
+                offerRide(email) #offer a ride. Spec 1
                 optionVal = True
                 
             elif optionInput == '2':
-                SearchRides()
+                SearchRides() # search for a ride, Spec 2
                 optionVal = True
                 
             elif optionInput == '3':
-                bookings()
+                bookings(email) #book or cancel, spec 3
                 optionVal = True
                 
             elif optionInput == '4':
-                rideRequests(email)
+                rideRequests(email) # input a valid request for a ride, SPec 4
                 optionVal = True
                 
             elif optionInput == '5':
-                searchDelRideReq()
+                searchDelRideReq(email) # search and delete the ride, SPec 5
                 optionVal = True
                 
-            elif optionInput == '0':  # To exit
+            elif optionInput == '0':  # To exit 
                 optionVal = True
                 print("Exiting...")
                 time.sleep(0.5)
                 print("goodBye!")
+#in all these cases the option input is valid, so the loop won't be repeated.  
 
 def main():
     loginScreen()
